@@ -16,6 +16,7 @@ turn's own error message, not by catching a request exception.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -51,11 +52,12 @@ class ScenarioRunError(Exception):
 class TrueForgeClient:
     def __init__(
         self,
-        base_url: str = "http://localhost:8790",
+        base_url: str | None = None,
         timeout_s: float = 120.0,
         max_rate_limit_retries: int = 5,
         default_backoff_s: float = 5.0,
     ) -> None:
+        base_url = base_url or os.environ.get("TRUEFORGE_BASE_URL", "http://localhost:8790")
         self._http = httpx.Client(base_url=base_url, timeout=timeout_s)
         self._max_rate_limit_retries = max_rate_limit_retries
         self._default_backoff_s = default_backoff_s
