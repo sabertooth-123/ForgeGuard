@@ -1,0 +1,20 @@
+{
+  "name": "forgeguard-devagent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "phase1": "tsx src/phase1-smoke-test.ts",
+    "phase2-sandbox": "tsx src/phase2-sandbox-test.ts",
+    "phase2-approval": "tsx src/phase2-approval-test.ts",
+    "register-agent": "tsx src/agent.ts",
+    "phase2-final": "tsx src/phase2-final-test.ts"
+  },
+  "dependencies": {
+    "@truefoundry/trueforge-sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
