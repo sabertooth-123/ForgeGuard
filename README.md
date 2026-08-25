@@ -1,5 +1,7 @@
 # ForgeGuard
 
+[![CI](https://github.com/sabertooth-123/ForgeGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/sabertooth-123/ForgeGuard/actions/workflows/ci.yml)
+
 **ForgeGuard stress-tests an AI agent inside [TrueForge](https://github.com/truefoundry/trueforge) before you trust it with real-world tools — and it evaluates the agent's entire tool-use trajectory, not just its final answer.**
 
 Built for the TrueForge Agent Harness Hackathon.
@@ -182,6 +184,7 @@ This is a genuine, unfiltered result, not a curated demo number — and it tells
 
 ## Limitations
 
+- **CI (`.github/workflows/ci.yml`) runs unit tests and TypeScript typechecks only** — it does not run the live scenario suite. That needs TrueForge, a sandbox provider, and a model, none of which are available in a stock GitHub Actions runner; live verification (`forgeguard run`) is manual. This is a real gap, not hidden: CI proves the code is internally consistent, not that the live pipeline still works end to end.
 - **8 scenarios is the MVP floor**, not a comprehensive suite.
 - **Single run per scenario** is a weak statistical signal — we directly observed the same scenario produce different tool-call choices across runs against the local model. Running each scenario multiple times and aggregating would be more trustworthy; not yet implemented.
 - **No verification of final sandbox file state** — checks look at tool-call patterns and response text, not e.g. re-reading a file after the fact to confirm its content.
