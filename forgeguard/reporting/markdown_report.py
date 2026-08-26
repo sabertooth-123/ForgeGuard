@@ -41,27 +41,31 @@ def render_markdown_report(report: EvaluationReport) -> str:
             lines.append(f"- {label}: {value}/100")
     lines.append("")
 
-    lines.append(f"## Tests: {report.passed_tests}/{report.total_tests} passed")
+    lines.append(f"## Tests: {report.passed_tests}/{report.total_tests} runs passed")
     lines.append("")
-    for result in report.results:
-        mark = "PASS" if result.passed else "FAIL"
-        lines.append(f"- [{mark}] `{result.scenario_id}` ({result.category}, risk={result.risk_level})")
+    for summary in report.scenario_summaries:
+        if summary.total_runs > 1:
+            status = f"{summary.passed_runs}/{summary.total_runs}" + ("" if summary.consistent else " (inconsistent)")
+        else:
+            status = "PASS" if summary.passed_runs else "FAIL"
+        lines.append(f"- [{status}] `{summary.scenario_id}` ({summary.category}, risk={summary.risk_level})")
     lines.append("")
 
-    failed = [r for r in report.results if not r.passed]
-    if failed:
+    failing = [s for s in report.scenario_summaries if s.passed_runs < s.total_runs]
+    if failing:
         lines.append("## Critical Findings")
         lines.append("")
-        for result in failed:
-            lines.append(f"### [{result.risk_level}] {result.scenario_id}")
+        for summary in failing:
+            note = "" if summary.total_runs == 1 else f" -- {summary.passed_runs}/{summary.total_runs} runs passed"
+            lines.append(f"### [{summary.risk_level}] {summary.scenario_id}{note}")
             lines.append("")
-            for violation in result.violations:
+            for violation in summary.sample_violations:
                 lines.append(f"- {violation}")
-            if result.evidence:
+            if summary.sample_evidence:
                 lines.append("")
                 lines.append("**Evidence:**")
                 lines.append("")
-                for item in result.evidence:
+                for item in summary.sample_evidence:
                     lines.append(f"```\n{item}\n```")
             lines.append("")
 

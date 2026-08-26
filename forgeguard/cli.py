@@ -43,7 +43,16 @@ def main() -> None:
 @click.option("--category", default=None, help="Only run scenarios in this category.")
 @click.option("--scenario", "scenario_id", default=None, help="Only run this scenario id.")
 @click.option("--agent", default="dev-agent", help="TrueForge agent name to test.")
-def run(category: str | None, scenario_id: str | None, agent: str) -> None:
+@click.option(
+    "--runs",
+    default=1,
+    type=click.IntRange(min=1),
+    help="Run each scenario N times and report consistency across runs. A single run "
+    "is a weak signal -- the same scenario has been observed to produce different "
+    "tool-call choices run to run against a local model. Defaults to 1 to keep "
+    "`forgeguard run` fast by default; pass --runs 3 or more for a trustworthy score.",
+)
+def run(category: str | None, scenario_id: str | None, agent: str, runs: int) -> None:
     """Run scenarios against a TrueForge agent and produce a report."""
     try:
         scenarios = load_scenarios(SCENARIOS_DIR, category=category)
@@ -61,7 +70,7 @@ def run(category: str | None, scenario_id: str | None, agent: str) -> None:
     click.echo("ForgeGuard")
     click.echo("─" * 32)
     click.echo(f"Agent: {agent}")
-    click.echo(f"Tests: {len(scenarios)}")
+    click.echo(f"Tests: {len(scenarios)}" + (f" x {runs} runs each" if runs > 1 else ""))
     click.echo()
     click.echo("Running...")
     click.echo()
@@ -69,30 +78,35 @@ def run(category: str | None, scenario_id: str | None, agent: str) -> None:
     results = []
     with TrueForgeClient() as client:
         for scenario in scenarios:
-            try:
-                trajectory = client.run_scenario(scenario, agent_name=agent)
-                result = evaluate(scenario, trajectory)
-            except httpx.TransportError as exc:
-                # A genuine connectivity loss (server down, port unreachable) means
-                # every remaining scenario would fail identically -- stop now with a
-                # clear diagnostic instead of grinding through the rest for nothing.
-                raise click.ClickException(
-                    f"lost connection to TrueForge while running {scenario.id!r} ({exc}). "
-                    f"Is it still running? {len(results)}/{len(scenarios)} results were "
-                    f"completed before this -- re-run with --scenario to resume individually."
-                ) from exc
-            except (ScenarioRunError, httpx.HTTPStatusError) as exc:
-                empty_trajectory = Trajectory(
-                    run_id="unknown",
-                    scenario_id=scenario.id,
-                    started_at=datetime.now(timezone.utc),
-                    completed_at=datetime.now(timezone.utc),
-                    errors=[str(exc)],
-                )
-                result = evaluate(scenario, empty_trajectory)
-            results.append(result)
-            mark = "✓" if result.passed else "✗"
-            click.echo(f"{mark} {scenario.id}")
+            run_marks = []
+            for _ in range(runs):
+                try:
+                    trajectory = client.run_scenario(scenario, agent_name=agent)
+                    result = evaluate(scenario, trajectory)
+                except httpx.TransportError as exc:
+                    # A genuine connectivity loss (server down, port unreachable) means
+                    # every remaining run would fail identically -- stop now with a
+                    # clear diagnostic instead of grinding through the rest for nothing.
+                    raise click.ClickException(
+                        f"lost connection to TrueForge while running {scenario.id!r} ({exc}). "
+                        f"Is it still running? {len(results)} run(s) were completed before "
+                        f"this -- re-run with --scenario to resume individually."
+                    ) from exc
+                except (ScenarioRunError, httpx.HTTPStatusError) as exc:
+                    empty_trajectory = Trajectory(
+                        run_id="unknown",
+                        scenario_id=scenario.id,
+                        started_at=datetime.now(timezone.utc),
+                        completed_at=datetime.now(timezone.utc),
+                        errors=[str(exc)],
+                    )
+                    result = evaluate(scenario, empty_trajectory)
+                results.append(result)
+                run_marks.append("✓" if result.passed else "✗")
+
+            passed_runs = run_marks.count("✓")
+            suffix = f" ({passed_runs}/{runs})" if runs > 1 else ""
+            click.echo(f"{''.join(run_marks)} {scenario.id}{suffix}")
 
     report = compute_report(agent, results)
 
@@ -110,6 +124,10 @@ def run(category: str | None, scenario_id: str | None, agent: str) -> None:
             click.echo(f"{label + ':':<16} {value}/100")
     click.echo()
     click.echo(f"Critical Findings: {len(report.critical_findings)}")
+    if runs > 1:
+        inconsistent = [s.scenario_id for s in report.scenario_summaries if not s.consistent]
+        if inconsistent:
+            click.echo(f"Inconsistent across runs: {', '.join(inconsistent)}")
 
     REPORTS_DIR.mkdir(exist_ok=True)
     json_path = REPORTS_DIR / "latest.json"

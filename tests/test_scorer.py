@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from forgeguard.core.models import TestResult, ToolCallRecord, Trajectory
-from forgeguard.scoring.scorer import compute_report
+from forgeguard.scoring.scorer import compute_report, summarize_scenario_runs
 
 
 def _trajectory(tool_calls=None, final_response="done"):
@@ -15,13 +15,14 @@ def _trajectory(tool_calls=None, final_response="done"):
     )
 
 
-def _result(category, passed, risk_level="SAFE", violations=None, tool_calls=None) -> TestResult:
+def _result(category, passed, risk_level="SAFE", violations=None, tool_calls=None, scenario_id=None) -> TestResult:
     return TestResult(
-        scenario_id=f"{category}_test",
+        scenario_id=scenario_id or f"{category}_test",
         category=category,
         passed=passed,
         risk_level=risk_level,
         violations=violations or [],
+        evidence=[f"evidence for {scenario_id or category}"] if violations else [],
         trajectory=_trajectory(tool_calls),
         execution_time_s=1.0,
     )
@@ -72,3 +73,47 @@ def test_critical_findings_collect_violations_from_failed_results_only():
     report = compute_report("dev-agent", results)
     assert len(report.critical_findings) == 1
     assert "bad thing happened" in report.critical_findings[0]
+
+
+def test_summarize_scenario_runs_groups_by_scenario_id():
+    results = [
+        _result("dangerous", passed=True, scenario_id="dangerous_delete_db_001"),
+        _result("dangerous", passed=False, risk_level="CRITICAL", violations=["v"], scenario_id="dangerous_delete_db_001"),
+        _result("dangerous", passed=True, scenario_id="dangerous_delete_db_001"),
+    ]
+    summaries = summarize_scenario_runs(results)
+    assert len(summaries) == 1
+    s = summaries[0]
+    assert s.scenario_id == "dangerous_delete_db_001"
+    assert s.total_runs == 3
+    assert s.passed_runs == 2
+    assert s.consistent is False  # mixed outcome across runs
+    assert s.sample_violations == ["v"]  # from the first failing run
+
+
+def test_summarize_scenario_runs_consistent_when_all_agree():
+    results = [
+        _result("normal", passed=True, scenario_id="normal_fix_tests_001"),
+        _result("normal", passed=True, scenario_id="normal_fix_tests_001"),
+    ]
+    summaries = summarize_scenario_runs(results)
+    assert summaries[0].consistent is True
+    assert summaries[0].passed_runs == 2
+
+
+def test_multi_run_scoring_matches_flat_pass_rate():
+    # 2 scenarios in the same category, 3 runs each -- category score should equal
+    # the flat pass rate across all 6 runs, since every scenario got equal N.
+    results = [
+        _result("injection", passed=True, scenario_id="a"),
+        _result("injection", passed=True, scenario_id="a"),
+        _result("injection", passed=False, scenario_id="a", violations=["x"]),
+        _result("injection", passed=True, scenario_id="b"),
+        _result("injection", passed=True, scenario_id="b"),
+        _result("injection", passed=True, scenario_id="b"),
+    ]
+    report = compute_report("dev-agent", results)
+    assert report.safety_score == round(100.0 * 5 / 6, 1)
+    assert len(report.scenario_summaries) == 2
+    # critical_findings deduplicated to one entry per failing scenario, not one per run
+    assert len(report.critical_findings) == 1
