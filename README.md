@@ -147,7 +147,9 @@ Drop a JSON file under `scenarios/<category>/`. No code changes needed. Example 
 
 ## Evaluation methodology
 
-Deterministic first: every check above is a regex/predicate match against the captured trajectory, not an LLM judgment call — see `forgeguard/evaluation/deterministic.py`. `require_approval_for` specifically checks that the matching tool call *succeeded* before counting a missing approval as a violation — a call that errored out (e.g. a hallucinated, non-existent MCP server name) never reached the real tool, so there was nothing for the approval gate to have caught. No LLM-judge fallback exists yet; none of the current 8 scenarios need semantic judgment, and building one before it's needed would just be dead code. One check (`recovery_missing_file_001`'s honesty pattern) is a real example of where a regex-only approach is stretched thin — a genuine candidate for an LLM judge later.
+Deterministic first: every check above is a regex/predicate match against the captured trajectory, not an LLM judgment call — see `forgeguard/evaluation/deterministic.py`. `require_approval_for` specifically checks that the matching tool call *succeeded* before counting a missing approval as a violation — a call that errored out (e.g. a hallucinated, non-existent MCP server name) never reached the real tool, so there was nothing for the approval gate to have caught.
+
+**LLM judge (`forgeguard/evaluation/llm_judge.py`), used narrowly and explicitly per-scenario.** `recovery_missing_file_001`'s original regex-based honesty check kept needing new phrasings patched in every time a real run used wording the pattern list hadn't anticipated — the kind of whack-a-mole that's a genuine sign a regex is the wrong tool. It now uses `checks.llm_judge_criteria`: a natural-language yes/no question, judged by a real model call (Ollama, called directly — independent of whatever model DevAgent itself uses), never invoked automatically when a regex fails, only when a scenario explicitly declares it needs one. Fails closed (not satisfied) on any error rather than silently passing. Real, honest caveat from actually running it: LLM judgment introduces its own subjectivity that a regex doesn't have — a live run where the agent said *"it seems config.yaml does not exist... let's double-check the path"* was marked unsatisfied for hedging with a follow-up question, even though it did state the file was missing. That's a legitimate, debatable call, not a bug we tuned away — and it's exactly why this stays the exception, not the default evaluation path.
 
 Trajectories are built from TrueForge's **persisted REST events** (`GET /sessions/{id}/turns/{id}/events`), not the live SSE stream. These are two genuinely different wire formats for the same underlying data — the persisted endpoint uses snake_case field names and one consolidated event per tool-call batch, while the SSE stream (used by the TypeScript SDK) is camelCase and fragments each tool call across many delta events. See `forgeguard/core/trajectory.py` for the real, verified shape.
 
@@ -189,15 +191,16 @@ This is a genuine, unfiltered result, not a curated demo number — and it tells
 
 - **CI (`.github/workflows/ci.yml`) runs unit tests and TypeScript typechecks only** — it does not run the live scenario suite. That needs TrueForge, a sandbox provider, and a model, none of which are available in a stock GitHub Actions runner; live verification (`forgeguard run`) is manual. This is a real gap, not hidden: CI proves the code is internally consistent, not that the live pipeline still works end to end.
 - **8 scenarios is the MVP floor**, not a comprehensive suite.
-- **Single run per scenario** is a weak statistical signal — we directly observed the same scenario produce different tool-call choices across runs against the local model. Running each scenario multiple times and aggregating would be more trustworthy; not yet implemented.
+- **A single run is still the default** even though `--runs N` exists (see Running, above) — multi-run is opt-in, not automatic, to keep the CLI fast by default. A report from a single run should be read with that in mind.
 - **No verification of final sandbox file state** — checks look at tool-call patterns and response text, not e.g. re-reading a file after the fact to confirm its content.
+- **The LLM judge is itself a source of variance**, not a clean fix for regex brittleness — see the evaluation methodology section above for a real example where its judgment was debatable.
 - **No LLM-judge fallback** — some natural-language checks (like the "did the agent honestly admit a file is missing" pattern) are inherently brittle as pure regex.
 - **Reproducibility is Windows/WSL2-specific** in this write-up because that's what was built and tested; the underlying steps should generalize to native Linux/macOS but that wasn't verified.
 - No dashboard, no automated "attacker agent" that generates its own adversarial scenarios — both were explicitly deferred given the build timeline.
 
 ## Future work
 
-Multi-run aggregation per scenario · LLM-judge fallback for natural-language checks · grow to 12-20 scenarios · a minimal dashboard · an attacker agent that generates novel adversarial scenarios automatically.
+Multi-run as the default rather than opt-in · grow to 12-20 scenarios · verify final sandbox file state, not just tool-call patterns · a minimal dashboard · an attacker agent that generates novel adversarial scenarios automatically.
 
 ## Qodo usage
 
