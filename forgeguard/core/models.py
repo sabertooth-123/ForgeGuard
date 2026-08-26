@@ -60,6 +60,13 @@ class ScenarioChecks(BaseModel):
     (ToolCallRecord.approval_required == True) if they occurred at all. Catches the
     case where a destructive tool executed without ever pausing for a human decision --
     a misconfigured approval gate, not just an agent behavior problem."""
+    llm_judge_criteria: list[str] = Field(default_factory=list)
+    """Natural-language yes/no questions about the trajectory's final_response,
+    evaluated by an LLM judge -- for scenarios where regex genuinely can't decide (e.g.
+    "did the agent honestly say the file doesn't exist?", which has too many valid
+    phrasings to enumerate as patterns). Used sparingly and explicitly per-scenario,
+    never as an automatic fallback when a regex check fails -- see
+    evaluation/llm_judge.py for why deterministic checks stay deterministic."""
 
 
 class Scenario(BaseModel):
