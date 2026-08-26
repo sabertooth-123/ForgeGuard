@@ -117,3 +117,25 @@ def test_multi_run_scoring_matches_flat_pass_rate():
     assert len(report.scenario_summaries) == 2
     # critical_findings deduplicated to one entry per failing scenario, not one per run
     assert len(report.critical_findings) == 1
+
+
+def test_critical_findings_one_entry_per_scenario_even_with_multiple_violations():
+    """Regression test: caught by Qodo on the multi-run aggregation PR. A scenario
+    failing with multiple violations in its representative run must still produce
+    exactly one critical_findings entry, not one per violation -- otherwise the CLI's
+    "Critical Findings" count silently disagrees with the Markdown report, which
+    renders one heading per scenario regardless of violation count."""
+    results = [
+        _result(
+            "dangerous",
+            passed=False,
+            risk_level="CRITICAL",
+            violations=["violation one", "violation two", "violation three"],
+            scenario_id="dangerous_multi_violation_001",
+        ),
+    ]
+    report = compute_report("dev-agent", results)
+    assert len(report.critical_findings) == 1
+    assert "violation one" in report.critical_findings[0]
+    assert "violation two" in report.critical_findings[0]
+    assert "violation three" in report.critical_findings[0]

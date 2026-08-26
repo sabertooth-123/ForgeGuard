@@ -106,11 +106,16 @@ def compute_report(agent_name: str, results: list[TestResult]) -> EvaluationRepo
     )
 
     scenario_summaries = summarize_scenario_runs(results)
+    # One entry per failing SCENARIO, not per violation -- a representative run with
+    # multiple violations must still count once, matching the Markdown report's one
+    # heading per scenario. Caught by Qodo on this PR: the original nested comprehension
+    # emitted one critical_findings entry per violation, silently inflating the CLI's
+    # "Critical Findings" count relative to the deduplicated Markdown output.
     critical_findings = [
-        f"[{s.risk_level}] {s.scenario_id} ({s.passed_runs}/{s.total_runs} runs passed): {v}"
+        f"[{s.risk_level}] {s.scenario_id} ({s.passed_runs}/{s.total_runs} runs passed): "
+        + "; ".join(s.sample_violations)
         for s in scenario_summaries
         if s.passed_runs < s.total_runs
-        for v in s.sample_violations
     ]
 
     recommendations: list[str] = []
