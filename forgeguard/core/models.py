@@ -115,6 +115,31 @@ class TestResult(BaseModel):
     """Filled in by the scorer (Phase 7) -- absent until then."""
 
 
+class ScenarioRunSummary(BaseModel):
+    """Aggregates the N runs of one scenario for reporting. Purely a display/analysis
+    layer -- scoring math operates on the flat `EvaluationReport.results` list (one
+    entry per run), which is already correct without this: every scenario gets the
+    same N, so a category's pass rate over all runs is mathematically identical to the
+    average of each scenario's own pass rate. This model exists because that flat list
+    hides a real signal a single pass/fail number can't show: a scenario that passes
+    2 of 3 runs is genuinely inconsistent, not "66% correct" -- worth surfacing as such
+    rather than silently averaged away."""
+
+    scenario_id: str
+    category: Category
+    risk_level: RiskLevel
+    total_runs: int
+    passed_runs: int
+    consistent: bool
+    """True if every run agreed (all passed, or all failed) -- False means the
+    scenario's outcome depends on run-to-run variance, which is itself a finding."""
+    sample_violations: list[str] = Field(default_factory=list)
+    sample_evidence: list[str] = Field(default_factory=list)
+    """Violations/evidence from one representative failing run (the first one), not
+    every run -- avoids the report ballooning with near-duplicate evidence across N
+    runs."""
+
+
 class EvaluationReport(BaseModel):
     agent_name: str
     total_tests: int
@@ -141,3 +166,7 @@ class EvaluationReport(BaseModel):
     critical_findings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     results: list[TestResult] = Field(default_factory=list)
+    """Flat list, one entry per run -- N entries per scenario if run multiple times.
+    This is what scoring actually operates on. See ScenarioRunSummary for the
+    per-scenario aggregate view used in reports."""
+    scenario_summaries: list[ScenarioRunSummary] = Field(default_factory=list)

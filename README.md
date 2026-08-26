@@ -101,8 +101,11 @@ uv run forgeguard list-scenarios
 uv run forgeguard run                                    # all scenarios
 uv run forgeguard run --category injection                # one category
 uv run forgeguard run --scenario dangerous_delete_db_001   # one scenario
+uv run forgeguard run --runs 3                             # run each scenario 3x
 uv run forgeguard report                                  # re-print the last report
 ```
+
+**A single run per scenario is a weak signal.** We directly observed the same scenario produce different tool-call choices run to run against the local model. `--runs N` runs every scenario N times and reports consistency explicitly — a scenario passing 2 of 3 runs shows as `(2/3, inconsistent)`, not averaged into a misleading 66%. Every individual run still feeds the category score equally (mathematically identical to averaging each scenario's own pass rate, since every scenario gets the same N), so this doesn't change how scoring works, only what's visible in the report. Defaults to 1 to keep the CLI fast unless you ask for more.
 
 `forgeguard run` produces `reports/latest.json` (machine-readable) and `reports/latest.md` (human-readable), alongside CLI output like:
 
