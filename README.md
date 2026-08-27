@@ -44,6 +44,8 @@ Four scenario categories, two scenarios each:
 
 ForgeGuard was built and run on Windows. One real finding from building it: `npx @truefoundry/trueforge`'s standalone mode does not start on native Windows (an ESM loader path-scheme bug, plus `LocalSandboxProvider` explicitly only supporting macOS/Linux) — **run TrueForge inside WSL2**, not directly on Windows.
 
+Steps 1 and 3 below start long-running servers (TrueForge itself, and the dangerous-tools MCP server) — each needs to keep running in its own terminal/WSL2 session while you use ForgeGuard, not just run once and exit.
+
 ### 1. TrueForge
 
 ```bash
@@ -51,8 +53,13 @@ ForgeGuard was built and run on Windows. One real finding from building it: `npx
 npx @truefoundry/trueforge
 ```
 Open `http://localhost:8790` (WSL2 forwards this to Windows automatically). In **Settings**:
-- **Models**: add a model provider. We used a free local model (see step 2) via a custom OpenAI-compatible provider — no API key needed, no rate limits. A hosted provider (OpenAI/Anthropic/Gemini/Groq/OpenRouter) works too via **Settings → Models → Add Custom Provider** or the built-in catalog, but be aware every hosted free tier we tried during development (Gemini, Groq, OpenRouter) hit a real limit within the first day of testing.
-- **Sandbox providers**: we used Daytona. Note: at time of writing, the "Configure Daytona" UI modal has a bug (throws a generic "Internal server error" if your Daytona organization has no default region set) — set a default region in the Daytona Dashboard first, or bypass the UI and call `PUT /api/v1/settings/sandbox-providers` directly if you hit this.
+- **Models**: add a model provider. For the free local model in step 2, go to **Settings → Models → Add Custom Provider** and fill in: Name `ollama-local`, Base URL `http://localhost:11434/v1`, API key blank, Model ID `qwen2.5-agent`, Model name `qwen2.5-agent`, Context length `16384`, Max output tokens `4096`. A hosted provider (OpenAI/Anthropic/Gemini/Groq/OpenRouter) works too via the same screen or the built-in catalog, but be aware every hosted free tier we tried during development (Gemini, Groq, OpenRouter) hit a real limit within the first day of testing.
+- **Sandbox providers**: we used [Daytona](https://daytona.io) — sign up there and get an API key first. In TrueForge, go to **Settings → Sandbox providers**, select the Daytona preset, and paste your key. Known bug at time of writing: this UI modal throws a generic "Internal server error" if your Daytona organization has no default region set yet — set one in the Daytona Dashboard first, or bypass the UI entirely and call the API directly:
+  ```bash
+  curl -X PUT http://localhost:8790/api/v1/settings/sandbox-providers \
+    -H "Content-Type: application/json" \
+    -d '{"manifest":{"type":"daytona","auth":{"api_key":"YOUR_DAYTONA_KEY"},"exec_timeout_ms":60000,"auto_stop_interval_in_minutes":5,"auto_archive_interval_in_minutes":60,"auto_delete_interval_in_minutes":7200}}'
+  ```
 
 ### 2. Local model (optional but recommended — avoids all rate limits)
 
@@ -77,7 +84,12 @@ npm install   # if running inside WSL2, do this from within WSL2 -- native binar
               # (e.g. tsx's esbuild) built on Windows will not run under WSL2
 npm run start
 ```
-Register it in TrueForge: `POST /api/v1/settings/mcp-servers` with `{"manifest": {"type": "remote", "name": "dangerous-tools", "url": "http://localhost:8081/mcp", "description": "..."}}`.
+Register it in TrueForge (no credential needed, this is our own local server):
+```bash
+curl -X POST http://localhost:8790/api/v1/settings/mcp-servers \
+  -H "Content-Type: application/json" \
+  -d '{"manifest":{"type":"remote","name":"dangerous-tools","url":"http://localhost:8081/mcp","description":"ForgeGuard simulated dangerous-action tools"}}'
+```
 
 ### 4. DevAgent
 
