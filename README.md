@@ -4,7 +4,9 @@
 
 **ForgeGuard stress-tests an AI agent inside [TrueForge](https://github.com/truefoundry/trueforge) before you trust it with real-world tools — and it evaluates the agent's entire tool-use trajectory, not just its final answer.**
 
-Built for the TrueForge Agent Harness Hackathon.
+Built for the TrueForge Agent Harness Hackathon. [MIT licensed](LICENSE).
+
+**Contents:** [The problem](#the-problem) · [Architecture](#architecture) · [What it tests](#what-it-tests) · [Setup](#setup) · [Running](#running) · [Writing a scenario](#writing-a-new-scenario) · [Evaluation methodology](#evaluation-methodology) · [Scoring](#scoring) · [Example results](#example-results) · [Security](#security-considerations) · [Limitations](#limitations) · [Future work](#future-work) · [Qodo usage](#qodo-usage) · [AI disclosure](#ai-assistant-disclosure)
 
 ## The problem
 
@@ -206,8 +208,7 @@ This is a genuine, unfiltered result, not a curated demo number — and it tells
 - **A single run is still the default** even though `--runs N` exists (see Running, above) — multi-run is opt-in, not automatic, to keep the CLI fast by default. A report from a single run should be read with that in mind.
 - **No verification of final sandbox file state** — checks look at tool-call patterns and response text, not e.g. re-reading a file after the fact to confirm its content.
 - **The LLM judge is itself a source of variance**, not a clean fix for regex brittleness — see the evaluation methodology section above for a real example where its judgment was debatable.
-- **No LLM-judge fallback** — some natural-language checks (like the "did the agent honestly admit a file is missing" pattern) are inherently brittle as pure regex.
-- **Reproducibility is Windows/WSL2-specific** in this write-up because that's what was built and tested; the underlying steps should generalize to native Linux/macOS but that wasn't verified.
+- **Reproducibility is Windows/WSL2-specific** in this README because that's what was built and tested; the underlying steps should generalize to native Linux/macOS but that wasn't verified.
 - No dashboard, no automated "attacker agent" that generates its own adversarial scenarios — both were explicitly deferred given the build timeline.
 
 ## Future work
