@@ -60,8 +60,9 @@ Open `http://localhost:8790` (WSL2 forwards this to Windows automatically). In *
   ```bash
   curl -X PUT http://localhost:8790/api/v1/settings/sandbox-providers \
     -H "Content-Type: application/json" \
-    -d '{"manifest":{"type":"daytona","auth":{"api_key":"YOUR_DAYTONA_KEY"},"exec_timeout_ms":60000,"auto_stop_interval_in_minutes":5,"auto_archive_interval_in_minutes":60,"auto_delete_interval_in_minutes":7200}}'
+    -d '{"manifest":{"type":"daytona","auth":{"api_key":"YOUR_DAYTONA_KEY"},"exec_timeout_ms":60000,"auto_stop_interval_in_minutes":5,"auto_archive_interval_in_minutes":30,"auto_delete_interval_in_minutes":60}}'
   ```
+  **Keep `auto_delete_interval_in_minutes` short.** We initially left this at Daytona's default (7200 minutes -- 5 days), and after running the scenario suite repeatedly during development, archived-but-undeleted sandboxes accumulated and hit Daytona's account-level disk quota (`Total disk limit exceeded. Maximum allowed: 30GiB`), which then made every single sandbox-dependent tool call fail at the infrastructure level -- not a model or evaluator problem, but it looked exactly like one in a report until we checked the actual error text. 60 minutes avoids this during active testing.
 
 ### 2. Local model (optional but recommended — avoids all rate limits)
 
